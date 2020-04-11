@@ -2,34 +2,33 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
+	"strings"
 )
 
-func command(cmd string) string {
-	switch cmd {
-	case "pwd":
-		path, err := os.Getwd()
-		if err != nil {
-			return err.Error()
-		}
-		return path
-	case "ls":
-		path, err := os.Getwd()
-		if err != nil {
-			return err.Error()
-		}
-		files, _ := ioutil.ReadDir(path)
-		b := bytes.Buffer{}
-		for _, f := range files {
-			b.WriteString(f.Name())
-			b.WriteString("\n")
-		}
-		return b.String()
+var cmdsMap = map[string]func(string, net.Conn){}
+
+func init() {
+	cmdsMap["cd"] = cdCmd
+	cmdsMap["ls"] = lsCmd
+	cmdsMap["ll"] = lsCmd
+	cmdsMap["pwd"] = pwdCmd
+	cmdsMap["cat"] = catCmd
+	cmdsMap["get"] = getCmd
+}
+
+func command(cmd string, conn net.Conn) {
+	if len(cmd) == 0 {
+		return
 	}
+	cmds := strings.Split(cmd, " ")
+	if c, ok := cmdsMap[cmds[0]]; ok {
+		c(cmd, conn)
+		return
+	}
+	defaultCmd(cmd, conn)
 }
 
 func handleConn(conn net.Conn) {
@@ -38,7 +37,7 @@ func handleConn(conn net.Conn) {
 	for scanner.Scan() {
 		cmd := scanner.Text()
 		log.Printf("%s: %s\n", conn.RemoteAddr().String(), cmd)
-		conn.Write([]byte(command(cmd)))
+		command(cmd, conn)
 	}
 	defer func() {
 		conn.Close()
@@ -47,10 +46,12 @@ func handleConn(conn net.Conn) {
 }
 
 func main() {
-	listener, err := net.Listen("tcp", "localhost:8000")
+	port := os.Args[1]
+	listener, err := net.Listen("tcp", "localhost:"+port)
 	if err != nil {
 		log.Fatal(err)
 	}
+	log.Printf("ftp server start at localhost:%s\n", port)
 	for {
 		conn, err := listener.Accept()
 		if err != nil {

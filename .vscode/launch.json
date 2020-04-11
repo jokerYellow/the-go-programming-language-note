@@ -19,6 +19,21 @@
             "request": "launch",
             "mode": "debug",
             "program": "${workspaceFolder}/util/main.go"
+        },
+        {
+            "name":"ftpserver",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/ch8/practice8.2/ftpserver",
+            "args": ["8000"]
+        },
+        {
+            "name": "ftpclient",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}/ch8/practice8.2/ftpclient"
         }
 
     ]

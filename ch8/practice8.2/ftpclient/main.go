@@ -1,23 +1,76 @@
 package main
 
 import (
-	"io"
+	"bufio"
 	"log"
 	"net"
 	"os"
+	"strings"
 )
 
-func mustCopy(dst io.Writer, src io.Reader) {
-	if _, err := io.Copy(dst, src); err != nil {
-		log.Fatal(err)
-	}
-}
+var getfile *os.File
+var haveNotWrite bool
 
 func main() {
-	conn, err := net.Dial("tcp", "localhost:8000")
+	address := "localhost:8000"
+	conn, err := net.Dial("tcp", address)
 	if err != nil {
 		log.Fatal(err)
 	}
-	go mustCopy(os.Stdout, conn)
-	mustCopy(conn, os.Stdin)
+	log.Printf("connected to :%s", address)
+
+	go func() {
+		for {
+			response := make([]byte, 10)
+			n, e := conn.Read(response)
+			if e != nil {
+				log.Println(e.Error())
+				break
+			}
+			if getfile != nil {
+				if haveNotWrite {
+					firstByte := response[0]
+					if firstByte != '0' {
+						os.Stdout.Write(response[1:n])
+						getfile.Close()
+						os.Remove(getfile.Name())
+						getfile = nil
+					}
+				} else {
+					getfile.Write(response[:n])
+				}
+			} else {
+				os.Stdout.Write(response[:n])
+			}
+			if n < len(response) && getfile != nil && haveNotWrite == false {
+				getfile.Close()
+				getfile = nil
+			}
+			haveNotWrite = false
+		}
+	}()
+	scannerInput := bufio.NewScanner(os.Stdin)
+	for {
+		if !scannerInput.Scan() {
+			return
+		}
+		b := scannerInput.Bytes()
+		cmds := strings.Split(string(b), " ")
+		b = append(b, '\n')
+
+		if cmds[0] == "get" {
+			f, e := os.Create(cmds[2])
+			getfile = f
+			haveNotWrite = true
+			if e != nil {
+				log.Println(e.Error())
+				continue
+			}
+		}
+		_, e := conn.Write(b)
+		if e != nil {
+			log.Printf("%s\n", e)
+			return
+		}
+	}
 }
