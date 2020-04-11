@@ -12,7 +12,7 @@ var getfile *os.File
 var haveNotWrite bool
 
 func main() {
-	address := "localhost:8000"
+	address := os.Args[1]
 	conn, err := net.Dial("tcp", address)
 	if err != nil {
 		log.Fatal(err)

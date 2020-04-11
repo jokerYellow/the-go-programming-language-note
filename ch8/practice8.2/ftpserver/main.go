@@ -47,7 +47,7 @@ func handleConn(conn net.Conn) {
 
 func main() {
 	port := os.Args[1]
-	listener, err := net.Listen("tcp", "localhost:"+port)
+	listener, err := net.Listen("tcp", "0.0.0.0:"+port)
 	if err != nil {
 		log.Fatal(err)
 	}
