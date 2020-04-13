@@ -11,31 +11,21 @@ import (
 func handleConn(conn net.Conn) {
 	input := bufio.NewScanner(conn)
 	requestTodo := make(chan int)
-	closedWrite := make(chan struct{})
-	requestDone := make(chan struct{})
+	closedRead := false
 	log.Printf("%s:connected", conn.RemoteAddr().String())
 	go func() {
 		sum := 0
 		for c := range requestTodo {
 			sum += c
-			if sum == 0 && (c == 0 || c == -1) {
-				go func() {
-					requestDone <- struct{}{}
-				}()
+			if sum == 0 && closedRead {
+				conn.(*net.TCPConn).CloseWrite()
+				log.Printf("%s:close write", conn.RemoteAddr().String())
 			}
 		}
 	}()
-	go func() {
-		<-closedWrite
-		<-requestDone
-		conn.(*net.TCPConn).CloseWrite()
-		log.Println("close write")
-	}()
 	for input.Scan() {
-		log.Println("new scan")
 		content := input.Text()
 		requestTodo <- 1
-		log.Println("new scan:", content)
 		go func() {
 			_, err := fmt.Fprintln(conn, content+"!")
 			if err != nil {
@@ -48,18 +38,16 @@ func handleConn(conn net.Conn) {
 			}
 			time.Sleep(5 * time.Second)
 			_, err = fmt.Fprintln(conn, content+"!!!")
-
 			if err != nil {
 				log.Println(err)
 			}
 			requestTodo <- -1
 		}()
 	}
-	log.Println("goto close read")
-	closedWrite <- struct{}{}
-	log.Println("close read")
-	requestTodo <- 0
+	log.Printf("%s:close read", conn.RemoteAddr().String())
 	conn.(*net.TCPConn).CloseRead()
+	closedRead = true
+	requestTodo <- 0
 }
 
 func main() {
