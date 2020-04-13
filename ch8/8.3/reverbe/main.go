@@ -14,7 +14,6 @@ func handleConn(conn net.Conn) {
 	wg := &sync.WaitGroup{}
 	log.Printf("%s:connected", conn.RemoteAddr().String())
 	for input.Scan() {
-		content := input.Text()
 		wg.Add(1)
 		go func(content string, delay time.Duration) {
 			flag := ""
@@ -27,13 +26,13 @@ func handleConn(conn net.Conn) {
 				time.Sleep(delay)
 			}
 			wg.Done()
-		}(content, 1*time.Second)
+		}(input.Text(), 1*time.Second)
 	}
-	log.Printf("%s:close read", conn.RemoteAddr().String())
 	conn.(*net.TCPConn).CloseRead()
+	log.Printf("%s:read closed", conn.RemoteAddr().String())
 	wg.Wait()
 	conn.(*net.TCPConn).CloseWrite()
-	log.Printf("%s:close write", conn.RemoteAddr().String())
+	log.Printf("%s:write closed", conn.RemoteAddr().String())
 }
 
 func main() {
