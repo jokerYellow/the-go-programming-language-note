@@ -5,49 +5,35 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
 func handleConn(conn net.Conn) {
 	input := bufio.NewScanner(conn)
-	requestTodo := make(chan int)
-	closedRead := false
+	wg := &sync.WaitGroup{}
 	log.Printf("%s:connected", conn.RemoteAddr().String())
-	go func() {
-		sum := 0
-		for c := range requestTodo {
-			sum += c
-			if sum == 0 && closedRead {
-				conn.(*net.TCPConn).CloseWrite()
-				log.Printf("%s:close write", conn.RemoteAddr().String())
-			}
-		}
-	}()
 	for input.Scan() {
 		content := input.Text()
-		requestTodo <- 1
-		go func() {
-			_, err := fmt.Fprintln(conn, content+"!")
-			if err != nil {
-				log.Println(err)
+		wg.Add(1)
+		go func(content string, delay time.Duration) {
+			flag := ""
+			for i := 0; i < 3; i++ {
+				flag += "!"
+				_, err := fmt.Fprintln(conn, content+flag)
+				if err != nil {
+					log.Println(err)
+				}
+				time.Sleep(delay)
 			}
-			time.Sleep(5 * time.Second)
-			_, err = fmt.Fprintln(conn, content+"!!")
-			if err != nil {
-				log.Println(err)
-			}
-			time.Sleep(5 * time.Second)
-			_, err = fmt.Fprintln(conn, content+"!!!")
-			if err != nil {
-				log.Println(err)
-			}
-			requestTodo <- -1
-		}()
+			wg.Done()
+		}(content, 1*time.Second)
 	}
 	log.Printf("%s:close read", conn.RemoteAddr().String())
 	conn.(*net.TCPConn).CloseRead()
-	closedRead = true
-	requestTodo <- 0
+	wg.Wait()
+	conn.(*net.TCPConn).CloseWrite()
+	log.Printf("%s:close write", conn.RemoteAddr().String())
 }
 
 func main() {
