@@ -19,7 +19,7 @@ var (
 	messages = make(chan string) // 所有接受的客户消息
 )
 
-const timeout = 5 * time.Second
+const timeout = 60 * time.Second
 
 func main() {
 	listenner, err := net.Listen("tcp", "localhost:8000")
@@ -40,17 +40,26 @@ func main() {
 
 func handleConn(conn net.Conn) {
 	input := bufio.NewScanner(conn)
-	who := conn.RemoteAddr().String()
 	msg := make(chan string)
-	client := client{msg, who}
+	client := client{msg, conn.RemoteAddr().String()}
+	defer func() {
+		conn.Close()
+		leaving <- client
+	}()
+	fmt.Fprintf(conn, "you are %s\ninput your name:", conn.RemoteAddr().String())
+	for input.Scan() {
+		name := input.Text()
+		if len(name) > 0 {
+			client.name = input.Text()
+			break
+		}
+	}
 	go func() {
 		for msg := range msg {
 			fmt.Fprint(conn, msg)
 		}
 	}()
 	entering <- client
-	fmt.Fprintf(conn, "you are %s\n", conn.RemoteAddr().String())
-
 	send := make(chan string)
 	go func() {
 		for {
@@ -63,12 +72,8 @@ func handleConn(conn net.Conn) {
 		}
 	}()
 	for input.Scan() {
-		send <- fmt.Sprintf("%s: %s\n", who, input.Text())
+		send <- fmt.Sprintf("%s: %s\n", client.name, input.Text())
 	}
-	defer func() {
-		conn.Close()
-		leaving <- client
-	}()
 }
 
 func boardCaster() {
