@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"time"
 )
 
 type client struct {
@@ -17,6 +18,8 @@ var (
 	leaving  = make(chan client)
 	messages = make(chan string) // 所有接受的客户消息
 )
+
+const timeout = 5 * time.Second
 
 func main() {
 	listenner, err := net.Listen("tcp", "localhost:8000")
@@ -47,8 +50,20 @@ func handleConn(conn net.Conn) {
 	}()
 	entering <- client
 	fmt.Fprintf(conn, "you are %s\n", conn.RemoteAddr().String())
+
+	send := make(chan string)
+	go func() {
+		for {
+			select {
+			case <-time.After(timeout):
+				conn.Close()
+			case m := <-send:
+				messages <- m
+			}
+		}
+	}()
 	for input.Scan() {
-		messages <- fmt.Sprintf("%s: %s\n", who, input.Text())
+		send <- fmt.Sprintf("%s: %s\n", who, input.Text())
 	}
 	defer func() {
 		conn.Close()
