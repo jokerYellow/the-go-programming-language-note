@@ -7,7 +7,10 @@ import (
 	"net"
 )
 
-type client chan<- string //对外发送消息的通道
+type client struct {
+	c    chan<- string //对外发送消息的通道
+	name string
+}
 
 var (
 	entering = make(chan client)
@@ -34,15 +37,15 @@ func main() {
 
 func handleConn(conn net.Conn) {
 	input := bufio.NewScanner(conn)
-	client := make(chan string)
 	who := conn.RemoteAddr().String()
-	entering <- client
-	messages <- fmt.Sprintf("%s: enter\n", who)
+	msg := make(chan string)
+	client := client{msg, who}
 	go func() {
-		for msg := range client {
-			conn.Write([]byte(msg))
+		for msg := range msg {
+			fmt.Fprint(conn, msg)
 		}
 	}()
+	entering <- client
 	fmt.Fprintf(conn, "you are %s\n", conn.RemoteAddr().String())
 	for input.Scan() {
 		messages <- fmt.Sprintf("%s: %s\n", who, input.Text())
@@ -50,7 +53,6 @@ func handleConn(conn net.Conn) {
 	defer func() {
 		conn.Close()
 		leaving <- client
-		messages <- fmt.Sprintf("%s: leave\n", who)
 	}()
 }
 
@@ -60,13 +62,19 @@ func boardCaster() {
 		select {
 		case msg := <-messages:
 			for cli := range clients {
-				cli <- msg
+				cli.c <- msg
 			}
 		case cli := <-entering:
+			go func() {
+				messages <- fmt.Sprintf("%s: enter\n", cli.name)
+			}()
 			clients[cli] = true
 		case cli := <-leaving:
 			delete(clients, cli)
-			close(cli)
+			go func() {
+				messages <- fmt.Sprintf("%s: leave\n", cli.name)
+			}()
+			close(cli.c)
 		}
 	}
 }
