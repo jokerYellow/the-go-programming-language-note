@@ -82,18 +82,18 @@ func boardCaster() {
 		select {
 		case msg := <-messages:
 			for cli := range clients {
-				cli.c <- msg
+				go func(cli client, msg string) { cli.c <- msg }(cli, msg)
 			}
 		case cli := <-entering:
-			go func() {
-				messages <- fmt.Sprintf("%s: enter\n", cli.name)
-			}()
+			go func(name string) {
+				messages <- fmt.Sprintf("%s: enter\n", name)
+			}(cli.name)
 			clients[cli] = true
 		case cli := <-leaving:
 			delete(clients, cli)
-			go func() {
-				messages <- fmt.Sprintf("%s: leave\n", cli.name)
-			}()
+			go func(name string) {
+				messages <- fmt.Sprintf("%s: leave\n", name)
+			}(cli.name)
 			close(cli.c)
 		}
 	}
