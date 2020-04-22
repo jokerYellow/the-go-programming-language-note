@@ -38,7 +38,7 @@ func Test(t *testing.T) {
 		wg.Add(1)
 		go func(url string) {
 			start := time.Now()
-			o, err := m.Get(url)
+			o, err := m.Get(url, nil)
 			if err != nil {
 				log.Fatal(err)
 			}
@@ -53,4 +53,22 @@ func Test(t *testing.T) {
 	}
 	wg.Wait()
 	fmt.Printf("sum duration: %s", time.Since(s))
+}
+
+func TestCancel(t *testing.T) {
+	cancel := make(chan struct{})
+	m := New(httpGetBody)
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		_, err := m.Get("http://www.baidu.com", cancel)
+		log.Println(err)
+		wg.Done()
+	}()
+	close(cancel)
+	wg.Wait()
+	start := time.Now()
+	_, err := m.Get("http://www.baidu.com", nil)
+	fmt.Printf("sum duration: %s\n", time.Since(start))
+	log.Println(err)
 }
